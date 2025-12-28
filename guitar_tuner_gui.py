@@ -6,21 +6,21 @@ from tuner_logic import TunerLogic
 import math
 
 REFERENCE_FREQUENCIES = {
-    "E2": 164.82,
-    "A2": 110.00,
-    "D3": 146.83,
-    "G3": 196.00,
-    "B3": 246.94,
-    "E4": 329.63
+    "E4": 329.63,  # 1ª cuerda (más aguda)
+    "B3": 246.94,  # 2ª cuerda
+    "G3": 196.00,  # 3ª cuerda
+    "D3": 146.83,  # 4ª cuerda
+    "A2": 110.00,  # 5ª cuerda
+    "E2": 82.41    # 6ª cuerda (más grave) - CORREGIDO
 }
 
 STRING_NAMES = {
-    "E2": "6ª cuerda",
-    "A2": "5ª cuerda",
-    "D3": "4ª cuerda",
-    "G3": "3ª cuerda",
-    "B3": "2ª cuerda",
-    "E4": "1ª cuerda"
+    "E4": "1ª cuerda (Mi agudo)",
+    "B3": "2ª cuerda (Si)",
+    "G3": "3ª cuerda (Sol)",
+    "D3": "4ª cuerda (Re)",
+    "A2": "5ª cuerda (La)",
+    "E2": "6ª cuerda (Mi grave)"
 }
 
 FORMAT = 8  # pyaudio.paInt16
@@ -59,45 +59,30 @@ class GuitarTunerGUI:
                                bg="#0a0a0a", fg="#00d9ff")
         title_label.pack(pady=(0, 15))
 
-        # Frame superior: Selector de cuerdas
-        top_frame = tk.Frame(main_frame, bg="#1a1a1a", highlightthickness=2, highlightbackground="#00d9ff")
-        top_frame.pack(fill=tk.X, pady=(0, 15))
-
-        selector_label = tk.Label(top_frame, text="Selecciona una cuerda:", font=("Helvetica", 11, "bold"),
-                                  bg="#1a1a1a", fg="#00d9ff")
-        selector_label.pack(side=tk.LEFT, padx=10, pady=8)
-
-        # Botones de selección de cuerdas
-        for string_key in REFERENCE_FREQUENCIES.keys():
-            btn = tk.Button(top_frame, text=STRING_NAMES[string_key], font=("Helvetica", 9, "bold"),
-                           bg="#1a1a1a", fg="#ffffff", activebackground="#00d9ff", activeforeground="#0a0a0a",
-                           border=2, padx=8, pady=4, relief=tk.RIDGE,
-                           command=lambda s=string_key: self.select_string(s))
-            btn.pack(side=tk.LEFT, padx=3, pady=8)
-            if string_key == "E4":
-                btn.config(bg="#00d9ff", fg="#0a0a0a")
-            self.root.after(0, lambda s=string_key, b=btn: setattr(self, f"btn_{s}", b))
-
         # Frame principal contenido
         content_frame = tk.Frame(main_frame, bg="#0a0a0a")
         content_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
 
         # Frame izquierdo: Guitarra
         left_frame = tk.Frame(content_frame, bg="#0a0a0a")
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 15))
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 20))
 
-        guitar_label = tk.Label(left_frame, text="GUITARRA", font=("Helvetica", 12, "bold"),
+        guitar_label = tk.Label(left_frame, text="GUITARRA - Haz clic en una cuerda", font=("Helvetica", 12, "bold"),
                                bg="#0a0a0a", fg="#00d9ff")
         guitar_label.pack()
 
-        self.guitar_canvas = tk.Canvas(left_frame, bg="#1a1a1a", width=220, height=380,
-                                       highlightbackground="#00d9ff", highlightthickness=2)
+        # Canvas para la guitarra con manejo de eventos
+        self.guitar_canvas = tk.Canvas(left_frame, bg="#0a0a0a", width=400, height=500,
+                                       highlightbackground="#00d9ff", highlightthickness=2,
+                                       cursor="hand2")
         self.guitar_canvas.pack(pady=5, fill=tk.BOTH, expand=True)
+        self.guitar_canvas.bind("<Button-1>", self.on_guitar_click)
+        self.guitar_canvas.bind("<Motion>", self.on_guitar_hover)
         self.draw_guitar()
 
         # Frame derecho: Indicador de afinación
         right_frame = tk.Frame(content_frame, bg="#0a0a0a")
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(15, 0))
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(20, 0))
 
         tuner_label = tk.Label(right_frame, text="INDICADOR DE AFINACIÓN", font=("Helvetica", 12, "bold"),
                               bg="#0a0a0a", fg="#00d9ff")
@@ -143,119 +128,212 @@ class GuitarTunerGUI:
     def select_string(self, string_key):
         self.current_string.set(string_key)
         self.string_info_label.config(text=f"Cuerda: {string_key} ({STRING_NAMES[string_key]})")
+        self.draw_guitar()
 
-        # Actualizar colores de botones
-        for s in REFERENCE_FREQUENCIES.keys():
-            btn = getattr(self, f"btn_{s}", None)
-            if btn:
-                if s == string_key:
-                    btn.config(bg="#00d9ff", fg="#0a0a0a")
-                else:
-                    btn.config(bg="#1a1a1a", fg="#ffffff")
+    def on_guitar_click(self, event):
+        """Detectar clic en una cuerda y seleccionarla"""
+        # Usar las posiciones almacenadas si existen
+        if hasattr(self, 'string_positions') and self.string_positions:
+            # Verificar si el clic está cerca de alguna cuerda
+            # Aumentar la zona de tolerancia a 25 píxeles para facilitar el clic
+            for string_key, string_y in self.string_positions:
+                if abs(event.y - string_y) < 25:
+                    self.select_string(string_key)
+                    self.string_info_label.config(text=f"Cuerda: {string_key} ({STRING_NAMES[string_key]}) ✓ Seleccionada")
+                    return
 
-        self.highlight_guitar_string(string_key)
+        # Si no se encontró cuerda cercana, mostrar mensaje
+        self.string_info_label.config(text="Haz clic más cercano a una cuerda", fg="#ff9900")
+
+    def on_guitar_hover(self, event):
+        """Mostrar efecto visual cuando el ratón está sobre una cuerda"""
+        if hasattr(self, 'string_positions') and self.string_positions:
+            for string_key, string_y in self.string_positions:
+                if abs(event.y - string_y) < 25:
+                    # Cambiar cursor cuando está sobre una cuerda
+                    self.guitar_canvas.config(cursor="hand2")
+                    return
+            # Cursor normal fuera de las cuerdas
+            self.guitar_canvas.config(cursor="arrow")
 
     def draw_guitar(self):
         canvas = self.guitar_canvas
         canvas.delete("all")
 
-        # Marco decorativo
-        canvas.create_rectangle(5, 5, 245, 495, outline="#00d9ff", width=2)
+        canvas_width = canvas.winfo_width()
+        canvas_height = canvas.winfo_height()
 
-        # Cuerpo de guitarra (formas simples)
-        # Caja superior
-        canvas.create_oval(50, 80, 200, 200, outline="#00aa88", width=2, fill="#1a2a2a")
-        # Caja inferior
-        canvas.create_oval(50, 230, 200, 350, outline="#00aa88", width=2, fill="#1a2a2a")
-        # Cuello
-        canvas.create_rectangle(110, 50, 140, 250, outline="#00aa88", width=2, fill="#1a2a2a")
+        # Valores por defecto si no se ha dibujado aún
+        if canvas_width <= 1:
+            canvas_width = 400
+        if canvas_height <= 1:
+            canvas_height = 500
 
-        # Trastes (frets)
-        for i in range(1, 6):
-            y = 80 + (i * 33)
-            canvas.create_line(110, y, 140, y, fill="#555555", width=1)
+        # Parámetros de la guitarra
+        margin_left = 40
+        margin_right = 40
+        margin_top = 60
+        margin_bottom = 60
 
-        # Cuerdas de guitarra
-        self.string_positions = [125, 131, 137, 143, 149, 155]
+        guitar_left = margin_left
+        guitar_right = canvas_width - margin_right
+        guitar_top = margin_top
+        guitar_bottom = canvas_height - margin_bottom
+
+        # Número de trastes
+        num_frets = 12
+        fret_spacing = (guitar_right - guitar_left) / num_frets
+
+        # Dibujar trastes (líneas verticales)
+        for i in range(num_frets + 1):
+            x = guitar_left + (i * fret_spacing)
+            canvas.create_line(x, guitar_top, x, guitar_bottom, fill="#555555", width=1)
+            if i > 0:
+                canvas.create_text(x, guitar_top - 15, text=str(i), font=("Helvetica", 8), fill="#888888")
+
+        # Cuerdas horizontales (6 cuerdas de guitarra)
         string_keys = list(REFERENCE_FREQUENCIES.keys())
+        start_y = guitar_top
+        end_y = guitar_bottom
+        string_spacing = (end_y - start_y) / 5
 
-        for idx, x in enumerate(self.string_positions):
-            if idx < len(string_keys):
-                canvas.create_line(x, 50, x, 400, fill="#888888", width=2)
-                canvas.create_text(x, 420, text=string_keys[idx], font=("Helvetica", 8), fill="#00ffaa")
+        # Almacenar posiciones de cuerdas para detección de clics
+        self.string_positions = []
 
-        self.highlight_guitar_string(self.current_string.get())
+        # Colores de las cuerdas (gradiente de cálido)
+        string_colors = ["#ffcc00", "#ffaa00", "#ff8800", "#ff6600", "#ff4400", "#ff2200"]
+        string_widths = [4, 4, 3, 3, 2, 2]  # Las cuerdas graves son más gruesas
 
-    def highlight_guitar_string(self, string_key):
-        canvas = self.guitar_canvas
-        string_keys = list(REFERENCE_FREQUENCIES.keys())
+        # Dibujar cuerdas
+        selected_string = self.current_string.get()
+        for idx, string_key in enumerate(string_keys):
+            string_y = start_y + (idx * string_spacing)
+            self.string_positions.append((string_key, string_y))
 
-        if string_key in string_keys:
-            idx = string_keys.index(string_key)
-            x = self.string_positions[idx]
+            # Color y grosor según si está seleccionada
+            if string_key == selected_string:
+                color = "#00ffff"  # Cyan para seleccionada
+                width = string_widths[idx] + 2
+                # Área de selección (rectángulo detrás) - más visible cuando está seleccionada
+                canvas.create_rectangle(guitar_left, string_y - 20, guitar_right, string_y + 20,
+                                      fill="#004444", outline="#00ffff", width=2)
+            else:
+                color = string_colors[idx]
+                width = string_widths[idx]
+                # Área de selección (rectángulo detrás) - sutil cuando no está seleccionada
+                canvas.create_rectangle(guitar_left, string_y - 20, guitar_right, string_y + 20,
+                                      fill="#1a1a1a", outline="", width=0)
 
-            # Dibujar círculos de resaltado
-            canvas.delete("highlight")
-            canvas.create_oval(x-8, 45, x+8, 65, outline="#ffff00", width=3, tags="highlight")
-            canvas.create_oval(x-8, 395, x+8, 415, outline="#ffff00", width=3, tags="highlight")
+            # Dibujar cuerda
+            canvas.create_line(guitar_left, string_y, guitar_right, string_y,
+                             fill=color, width=width)
+
+            # Etiqueta de cuerda a la izquierda
+            canvas.create_text(10, string_y, text=string_key,
+                             font=("Helvetica", 10, "bold"), fill="#00ffaa")
+
+            # Nombre de cuerda a la derecha
+            canvas.create_text(canvas_width - 10, string_y, text=STRING_NAMES[string_key],
+                             font=("Helvetica", 9), fill="#00ffaa", anchor="e")
+
+        # Marco exterior
+        canvas.create_rectangle(5, 5, canvas_width - 5, canvas_height - 5,
+                               outline="#00d9ff", width=2)
 
     def draw_tuner(self):
         canvas = self.tuner_canvas
         canvas.delete("all")
 
-        # Fondo
-        canvas.create_rectangle(0, 0, 350, 250, fill="#1a1a1a", outline="#00d9ff", width=2)
+        canvas_width = canvas.winfo_width()
+        canvas_height = canvas.winfo_height()
 
-        # Dial circular (indicador de afinación)
-        cx, cy = 175, 120
-        radius = 80
+        if canvas_width <= 1:
+            canvas_width = 300
+        if canvas_height <= 1:
+            canvas_height = 220
 
-        # Fondo del dial
-        canvas.create_oval(cx-radius, cy-radius, cx+radius, cy+radius, fill="#0a0a0a", outline="#00d9ff", width=2)
+        # Fondo elegante con gradiente (simulado)
+        canvas.create_rectangle(0, 0, canvas_width, canvas_height, fill="#0f0f0f", outline="#00d9ff", width=2)
 
-        # Zonas de color
-        # Zona roja (demasiado baja) - izquierda
-        canvas.create_arc(cx-radius, cy-radius, cx+radius, cy+radius, start=180, extent=90,
-                         fill="#331111", outline="#ff3333", width=2)
-        # Zona verde (afinado) - centro
-        canvas.create_arc(cx-radius, cy-radius, cx+radius, cy+radius, start=270, extent=180,
-                         fill="#113333", outline="#00ff66", width=2)
-        # Zona roja (demasiado alta) - derecha
-        canvas.create_arc(cx-radius, cy-radius, cx+radius, cy+radius, start=90, extent=90,
-                         fill="#331111", outline="#ff3333", width=2)
+        # Título del indicador
+        canvas.create_text(canvas_width / 2, 15, text="AFINACIÓN",
+                          font=("Helvetica", 12, "bold"), fill="#00d9ff")
+
+        # --- BARRA HORIZONTAL PRINCIPAL ---
+        bar_left = 30
+        bar_right = canvas_width - 30
+        bar_top = 50
+        bar_bottom = 80
+        bar_height = bar_bottom - bar_top
+
+        # Fondo de la barra (negro)
+        canvas.create_rectangle(bar_left, bar_top, bar_right, bar_bottom,
+                               fill="#0a0a0a", outline="#444444", width=1)
+
+        # Zonas de color en la barra
+        bar_width = bar_right - bar_left
+        zone_width = bar_width / 3
+
+        # Zona BAJA (rojo)
+        canvas.create_rectangle(bar_left, bar_top, bar_left + zone_width, bar_bottom,
+                               fill="#330000", outline="", width=0)
+        # Zona AFINADO (verde)
+        canvas.create_rectangle(bar_left + zone_width, bar_top, bar_left + 2*zone_width, bar_bottom,
+                               fill="#003300", outline="", width=0)
+        # Zona ALTA (rojo)
+        canvas.create_rectangle(bar_left + 2*zone_width, bar_top, bar_right, bar_bottom,
+                               fill="#330000", outline="", width=0)
 
         # Líneas divisoras
-        canvas.create_line(cx-radius, cy, cx-radius+20, cy, fill="#ff3333", width=2)  # Izquierda baja
-        canvas.create_line(cx, cy-radius, cx, cy-radius+20, fill="#00ff66", width=2)  # Centro afinado
-        canvas.create_line(cx+radius, cy, cx+radius-20, cy, fill="#ff3333", width=2)  # Derecha alta
+        canvas.create_line(bar_left + zone_width, bar_top - 5, bar_left + zone_width, bar_bottom + 5,
+                          fill="#ff3333", width=2)
+        canvas.create_line(bar_left + 2*zone_width, bar_top - 5, bar_left + 2*zone_width, bar_bottom + 5,
+                          fill="#ff3333", width=2)
 
-        # Texto de estados
-        canvas.create_text(cx-70, cy+60, text="BAJA", font=("Helvetica", 9, "bold"), fill="#ff3333")
-        canvas.create_text(cx, cy+70, text="AFINADO", font=("Helvetica", 9, "bold"), fill="#00ff66")
-        canvas.create_text(cx+70, cy+60, text="ALTA", font=("Helvetica", 9, "bold"), fill="#ff3333")
+        # Línea central (marca el punto de afinación perfecta)
+        center_x = bar_left + bar_width / 2
+        canvas.create_line(center_x, bar_top - 10, center_x, bar_bottom + 10,
+                          fill="#00ff66", width=3)
 
-        # Aguja en el centro (neutro)
-        self.draw_needle(canvas, cx, cy, 0)
+        # Etiquetas de zonas
+        canvas.create_text(bar_left + zone_width/2, bar_top + bar_height + 20,
+                          text="BAJA", font=("Helvetica", 9, "bold"), fill="#ff3333")
+        canvas.create_text(center_x, bar_top + bar_height + 20,
+                          text="AFINADO", font=("Helvetica", 9, "bold"), fill="#00ff66")
+        canvas.create_text(bar_left + 2.5*zone_width, bar_top + bar_height + 20,
+                          text="ALTA", font=("Helvetica", 9, "bold"), fill="#ff3333")
 
-        # Centro del dial
-        canvas.create_oval(cx-5, cy-5, cx+5, cy+5, fill="#00d9ff", outline="#00ffaa", width=1)
+        # Aguja/indicador en el centro inicialmente
+        self.draw_tuner_needle(canvas, center_x, bar_top, bar_bottom)
 
-    def draw_needle(self, canvas, cx, cy, angle):
+        # --- INFORMACIÓN ADICIONAL ---
+        info_y = 130
+
+        # Offset en cents
+        canvas.create_text(15, info_y, text="Offset:", font=("Helvetica", 9), fill="#888888", anchor="w")
+        self.offset_label = tk.Label(self.root, text="0.0¢", font=("Helvetica", 10, "bold"),
+                                    bg="#0f0f0f", fg="#ffff00")
+        # Esto se actualizará dinámicamente
+
+        # Línea decorativa inferior
+        canvas.create_line(15, info_y + 25, canvas_width - 15, info_y + 25,
+                          fill="#444444", width=1)
+
+    def draw_tuner_needle(self, canvas, x, top, bottom):
+        """Dibujar la aguja del indicador de afinación"""
         canvas.delete("needle")
 
-        radius = 75
-        needle_length = 60
+        # Aguja triangular
+        height = bottom - top + 20
+        points = [x, top - 10, x - 6, top + 8, x + 6, top + 8]
+        canvas.create_polygon(points, fill="#ffff00", outline="#ffff00", tags="needle")
 
-        # Convertir ángulo a radianes
-        rad = math.radians(angle)
+        # Línea vertical
+        canvas.create_line(x, top, x, bottom + 5, fill="#ffff00", width=2, tags="needle")
 
-        # Punto final de la aguja
-        x2 = cx + needle_length * math.sin(rad)
-        y2 = cy - needle_length * math.cos(rad)
-
-        # Dibujar aguja
-        canvas.create_line(cx, cy, x2, y2, fill="#ffff00", width=3, tags="needle")
-        canvas.create_oval(x2-4, y2-4, x2+4, y2+4, fill="#ffff00", outline="#ffff00", tags="needle")
+    def draw_needle(self, canvas, cx, cy, angle, radius=None):
+        """Método obsoleto - mantener para compatibilidad"""
+        pass
 
     def control_tuning(self):
         if self.is_tuning:
@@ -283,11 +361,45 @@ class GuitarTunerGUI:
 
         filtered_data = self.signal_processor.lowpass_filter(audio_data, 350.0)
         windowed_data = filtered_data * np.hamming(len(filtered_data))
-        dominant_frequency, _ = self.signal_processor.dominant_freq(windowed_data)
+        dominant_frequency, dominant_magnitude = self.signal_processor.dominant_freq(windowed_data)
 
-        if dominant_frequency is not None:
-            closest_string, min_distance = self.tuner_logic.find_closest_string(dominant_frequency)
+        # Obtener la cuerda seleccionada y su frecuencia de referencia
+        selected_string = self.current_string.get()
+        reference_freq = REFERENCE_FREQUENCIES[selected_string]
+
+        # Umbral dinámico: basado en la frecuencia de referencia
+        # Para E2 (82.41 Hz): umbral bajo ~82
+        # Para G3 (196.00 Hz): umbral medio ~196
+        # Para E4 (329.63 Hz): umbral alto ~330
+        # Usar multiplicador 1.0 para ser más permisivo
+        MAGNITUDE_THRESHOLD = max(50, int(reference_freq * 1.0))
+
+        if dominant_frequency is not None and dominant_magnitude > MAGNITUDE_THRESHOLD:
+            # Buscar la frecuencia más cercana a la cuerda seleccionada
+            # en un rango razonable (±50% de la frecuencia de referencia)
             selected_string = self.current_string.get()
+            reference_freq = REFERENCE_FREQUENCIES[selected_string]
+
+            # Rango de búsqueda: referencia ±50%
+            min_freq = reference_freq * 0.5
+            max_freq = reference_freq * 1.5
+
+            # Si la frecuencia detectada está muy lejos del rango esperado, ignorarla
+            if not (min_freq <= dominant_frequency <= max_freq):
+                # Frecuencia fuera de rango, mostrar estado neutral
+                self.frequency_label.config(text="Frecuencia: --- Hz")
+                self.status_label.config(text="Estado: Esperando señal válida...", fg="#888888")
+                canvas_width = self.tuner_canvas.winfo_width()
+                if canvas_width <= 1:
+                    canvas_width = 300
+                bar_left = 30
+                bar_right = canvas_width - 30
+                bar_center = bar_left + (bar_right - bar_left) / 2
+                self.draw_tuner_needle(self.tuner_canvas, bar_center, 50, 80)
+                self.root.after(100, self.tune_guitar)
+                return
+
+            closest_string, min_distance = self.tuner_logic.find_closest_string(dominant_frequency)
             reference_freq = REFERENCE_FREQUENCIES[selected_string]
 
             self.current_frequency = dominant_frequency
@@ -298,20 +410,53 @@ class GuitarTunerGUI:
                 cents_offset = 1200 * math.log2(dominant_frequency / reference_freq)
                 self.tuning_offset = cents_offset
 
-                # Convertir offset a ángulo (-90 a +90 grados)
-                angle = max(-90, min(90, cents_offset / 5))  # Dividir por 5 para mejor visualización
-                self.draw_needle(self.tuner_canvas, 175, 120, angle)
+                # Obtener posiciones del canvas tuner
+                canvas_width = self.tuner_canvas.winfo_width()
+                canvas_height = self.tuner_canvas.winfo_height()
+                if canvas_width <= 1:
+                    canvas_width = 300
+                if canvas_height <= 1:
+                    canvas_height = 220
 
-                # Determinar estado
-                if abs(cents_offset) <= 5:  # ±5 cents de tolerancia
+                # Parámetros de la barra
+                bar_left = 30
+                bar_right = canvas_width - 30
+                bar_width = bar_right - bar_left
+                bar_center = bar_left + bar_width / 2
+                bar_top = 50
+                bar_bottom = 80
+
+                # Mapear offset en cents a posición en la barra
+                # ±50 cents = fuera del rango visible
+                max_cents = 50
+                normalized_offset = max(-1, min(1, cents_offset / max_cents))
+                needle_x = bar_center + (normalized_offset * bar_width / 2)
+
+                # Dibujar la aguja en la posición correcta
+                self.draw_tuner_needle(self.tuner_canvas, needle_x, bar_top, bar_bottom)
+
+                # Determinar estado basado ÚNICAMENTE en cents_offset
+                if abs(cents_offset) <= 7:  # ±7 cents de tolerancia
                     self.tuning_status = "AFINADO ✓"
-                    self.status_label.config(text=f"Estado: {self.tuning_status}", fg="#00ff66")
-                elif dominant_frequency > reference_freq:
+                    self.status_label.config(text=f"Estado: {self.tuning_status} ({cents_offset:+.1f}¢)", fg="#00ff66")
+                elif cents_offset > 7:  # Si es positivo, está más alta
                     self.tuning_status = "DEMASIADO ALTA"
-                    self.status_label.config(text=f"Estado: {self.tuning_status} (+{cents_offset:.1f})", fg="#ff3333")
-                else:
+                    self.status_label.config(text=f"Estado: {self.tuning_status} (+{cents_offset:.1f}¢)", fg="#ff3333")
+                else:  # Si es negativo, está más baja
                     self.tuning_status = "DEMASIADO BAJA"
-                    self.status_label.config(text=f"Estado: {self.tuning_status} ({cents_offset:.1f})", fg="#ff3333")
+                    self.status_label.config(text=f"Estado: {self.tuning_status} ({cents_offset:.1f}¢)", fg="#ff3333")
+        else:
+            # Si no hay señal suficiente, mostrar estado neutral
+            self.frequency_label.config(text="Frecuencia: --- Hz")
+            self.status_label.config(text="Estado: Esperando señal...", fg="#888888")
+            # Reiniciar la aguja al centro
+            canvas_width = self.tuner_canvas.winfo_width()
+            if canvas_width <= 1:
+                canvas_width = 300
+            bar_left = 30
+            bar_right = canvas_width - 30
+            bar_center = bar_left + (bar_right - bar_left) / 2
+            self.draw_tuner_needle(self.tuner_canvas, bar_center, 50, 80)
 
         self.root.after(100, self.tune_guitar)
 
