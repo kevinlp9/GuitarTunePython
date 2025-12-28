@@ -3,6 +3,7 @@ import numpy as np
 from audio_stream import AudioStream
 from signal_processor import SignalProcessor
 from tuner_logic import TunerLogic
+from visualizer import AudioVisualizer
 import math
 
 REFERENCE_FREQUENCIES = {
@@ -32,9 +33,9 @@ TOLERANCE = 1.0
 class GuitarTunerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Afinador de Guitarra - Elegante")
-        self.root.geometry("1000x700")
-        self.root.resizable(False, False)
+        self.root.title("Afinador de Guitarra")
+        self.root.geometry("1200x850")
+        self.root.resizable(True, True)
         self.root.configure(bg="#0a0a0a")
 
         self.is_tuning = False
@@ -57,22 +58,30 @@ class GuitarTunerGUI:
         # Título
         title_label = tk.Label(main_frame, text="AFINADOR DE GUITARRA", font=("Helvetica", 28, "bold"),
                                bg="#0a0a0a", fg="#00d9ff")
-        title_label.pack(pady=(0, 15))
+        title_label.pack(pady=(0, 10))
+
+        # Frame con gráficas (reducido)
+        graphs_frame = tk.Frame(main_frame, bg="#0a0a0a", height=250)
+        graphs_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
+        graphs_frame.pack_propagate(False)  # Mantener altura fija
+
+        # Crear visualizador
+        self.visualizer = AudioVisualizer(graphs_frame, rate=RATE, chunk=CHUNK)
 
         # Frame principal contenido
         content_frame = tk.Frame(main_frame, bg="#0a0a0a")
-        content_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        content_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
         # Frame izquierdo: Guitarra
         left_frame = tk.Frame(content_frame, bg="#0a0a0a")
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 20))
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
 
         guitar_label = tk.Label(left_frame, text="GUITARRA - Haz clic en una cuerda", font=("Helvetica", 12, "bold"),
                                bg="#0a0a0a", fg="#00d9ff")
         guitar_label.pack()
 
         # Canvas para la guitarra con manejo de eventos
-        self.guitar_canvas = tk.Canvas(left_frame, bg="#0a0a0a", width=400, height=500,
+        self.guitar_canvas = tk.Canvas(left_frame, bg="#0a0a0a", width=450, height=350,
                                        highlightbackground="#00d9ff", highlightthickness=2,
                                        cursor="hand2")
         self.guitar_canvas.pack(pady=5, fill=tk.BOTH, expand=True)
@@ -82,48 +91,48 @@ class GuitarTunerGUI:
 
         # Frame derecho: Indicador de afinación
         right_frame = tk.Frame(content_frame, bg="#0a0a0a")
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(20, 0))
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
 
         tuner_label = tk.Label(right_frame, text="INDICADOR DE AFINACIÓN", font=("Helvetica", 12, "bold"),
                               bg="#0a0a0a", fg="#00d9ff")
         tuner_label.pack()
 
         # Canvas para el indicador
-        self.tuner_canvas = tk.Canvas(right_frame, bg="#1a1a1a", width=300, height=220,
+        self.tuner_canvas = tk.Canvas(right_frame, bg="#1a1a1a", width=350, height=200,
                                       highlightbackground="#00d9ff", highlightthickness=2)
         self.tuner_canvas.pack(pady=5, fill=tk.BOTH, expand=True)
         self.draw_tuner()
 
         # Información de la cuerda
         self.string_info_label = tk.Label(right_frame, text="Cuerda: E4 (1ª cuerda)",
-                                         font=("Helvetica", 11, "bold"), bg="#0a0a0a", fg="#00ffaa")
-        self.string_info_label.pack(pady=5)
+                                         font=("Helvetica", 10, "bold"), bg="#0a0a0a", fg="#00ffaa")
+        self.string_info_label.pack(pady=3)
 
         # Frecuencia detectada
         self.frequency_label = tk.Label(right_frame, text="Frecuencia: --- Hz",
-                                       font=("Helvetica", 10), bg="#0a0a0a", fg="#ffff00")
+                                       font=("Helvetica", 9), bg="#0a0a0a", fg="#ffff00")
         self.frequency_label.pack()
 
         # Estado de afinación
         self.status_label = tk.Label(right_frame, text="Estado: Esperando...",
-                                    font=("Helvetica", 10, "bold"), bg="#0a0a0a", fg="#888888")
+                                    font=("Helvetica", 9, "bold"), bg="#0a0a0a", fg="#888888")
         self.status_label.pack(pady=3)
 
-        # Botones de control
-        button_frame = tk.Frame(main_frame, bg="#0a0a0a")
-        button_frame.pack(pady=(10, 0), fill=tk.X)
+        # Botones de control (FRAME SEPARADO EN LA PARTE INFERIOR)
+        button_frame = tk.Frame(self.root, bg="#0a0a0a", height=70)
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
 
-        self.start_button = tk.Button(button_frame, text="INICIAR", font=("Helvetica", 11, "bold"),
-                                     bg="#00d9ff", fg="#0a0a0a", padx=25, pady=8,
+        self.start_button = tk.Button(button_frame, text="▶ INICIAR", font=("Helvetica", 12, "bold"),
+                                     bg="#00d9ff", fg="#0a0a0a", padx=35, pady=12,
                                      activebackground="#00ffaa", activeforeground="#0a0a0a",
                                      command=self.control_tuning, border=2, relief=tk.RAISED)
-        self.start_button.pack(side=tk.LEFT, padx=10)
+        self.start_button.pack(side=tk.LEFT, padx=15, pady=10)
 
-        close_button = tk.Button(button_frame, text="SALIR", font=("Helvetica", 11, "bold"),
-                                bg="#ff3333", fg="#ffffff", padx=25, pady=8,
+        close_button = tk.Button(button_frame, text="✕ SALIR", font=("Helvetica", 12, "bold"),
+                                bg="#ff3333", fg="#ffffff", padx=35, pady=12,
                                 activebackground="#ff6666", activeforeground="#ffffff",
                                 command=self.root.quit, border=2, relief=tk.RAISED)
-        close_button.pack(side=tk.LEFT, padx=10)
+        close_button.pack(side=tk.LEFT, padx=15, pady=10)
 
     def select_string(self, string_key):
         self.current_string.set(string_key)
@@ -200,9 +209,10 @@ class GuitarTunerGUI:
         # Almacenar posiciones de cuerdas para detección de clics
         self.string_positions = []
 
-        # Colores de las cuerdas (gradiente de cálido)
-        string_colors = ["#ffcc00", "#ffaa00", "#ff8800", "#ff6600", "#ff4400", "#ff2200"]
-        string_widths = [4, 4, 3, 3, 2, 2]  # Las cuerdas graves son más gruesas
+        # Colores de las cuerdas (más vibrantes y diferenciados)
+        # Orden: E4, B3, G3, D3, A2, E2
+        string_colors = ["#ff0080", "#ff3300", "#ff6600", "#ffaa00", "#ffdd00", "#ffff00"]
+        string_widths = [5, 5, 4, 4, 3, 3]  # Cuerdas más gruesas para mejor visibilidad
 
         # Dibujar cuerdas
         selected_string = self.current_string.get()
@@ -210,31 +220,31 @@ class GuitarTunerGUI:
             string_y = start_y + (idx * string_spacing)
             self.string_positions.append((string_key, string_y))
 
-            # Color y grosor según si está seleccionada
+            # Área de selección (rectángulo detrás)
             if string_key == selected_string:
-                color = "#00ffff"  # Cyan para seleccionada
+                # Seleccionada: resaltada en cyan
+                canvas.create_rectangle(guitar_left - 5, string_y - 25, guitar_right + 5, string_y + 25,
+                                      fill="#004444", outline="#00ffff", width=3)
+                color = "#00ffff"
                 width = string_widths[idx] + 2
-                # Área de selección (rectángulo detrás) - más visible cuando está seleccionada
-                canvas.create_rectangle(guitar_left, string_y - 20, guitar_right, string_y + 20,
-                                      fill="#004444", outline="#00ffff", width=2)
             else:
+                # No seleccionada: fondo sutil
+                canvas.create_rectangle(guitar_left - 5, string_y - 25, guitar_right + 5, string_y + 25,
+                                      fill="#1a1a1a", outline="#333333", width=1)
                 color = string_colors[idx]
                 width = string_widths[idx]
-                # Área de selección (rectángulo detrás) - sutil cuando no está seleccionada
-                canvas.create_rectangle(guitar_left, string_y - 20, guitar_right, string_y + 20,
-                                      fill="#1a1a1a", outline="", width=0)
 
-            # Dibujar cuerda
+            # Dibujar cuerda (más gruesa)
             canvas.create_line(guitar_left, string_y, guitar_right, string_y,
                              fill=color, width=width)
 
-            # Etiqueta de cuerda a la izquierda
-            canvas.create_text(10, string_y, text=string_key,
-                             font=("Helvetica", 10, "bold"), fill="#00ffaa")
+            # Etiqueta de cuerda a la izquierda (más grande)
+            canvas.create_text(15, string_y, text=string_key,
+                             font=("Helvetica", 12, "bold"), fill="#00ffff")
 
-            # Nombre de cuerda a la derecha
-            canvas.create_text(canvas_width - 10, string_y, text=STRING_NAMES[string_key],
-                             font=("Helvetica", 9), fill="#00ffaa", anchor="e")
+            # Nombre de cuerda a la derecha (más grande)
+            canvas.create_text(canvas_width - 15, string_y, text=STRING_NAMES[string_key],
+                             font=("Helvetica", 11), fill="#00ffaa", anchor="e")
 
         # Marco exterior
         canvas.create_rectangle(5, 5, canvas_width - 5, canvas_height - 5,
@@ -396,6 +406,12 @@ class GuitarTunerGUI:
                 self.current_frequency = dominant_frequency
                 self.frequency_label.config(text=f"Frecuencia: {dominant_frequency:.2f} Hz")
                 self.tuning_offset = cents_offset
+
+                # Actualizar visualizador gráfico con audio_data SIN procesar
+                try:
+                    self.visualizer.update(audio_data, dominant_frequency)
+                except Exception as e:
+                    pass  # Si hay error en visualizador, continúa funcionando
 
                 # Obtener posiciones del canvas tuner
                 canvas_width = self.tuner_canvas.winfo_width()

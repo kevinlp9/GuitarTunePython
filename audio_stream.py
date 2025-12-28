@@ -1,6 +1,5 @@
 import pyaudio
 
-
 class AudioStream:
     def __init__(self, format, channels, rate, chunk):
         self.p = pyaudio.PyAudio()
