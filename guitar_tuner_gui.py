@@ -359,7 +359,7 @@ class GuitarTunerGUI:
             self.root.after(100, self.tune_guitar)
             return
 
-        filtered_data = self.signal_processor.lowpass_filter(audio_data, 350.0)
+        filtered_data = self.signal_processor.lowpass_filter(audio_data, 450.0)
         windowed_data = filtered_data * np.hamming(len(filtered_data))
         dominant_frequency, dominant_magnitude = self.signal_processor.dominant_freq(windowed_data)
 
@@ -367,47 +367,20 @@ class GuitarTunerGUI:
         selected_string = self.current_string.get()
         reference_freq = REFERENCE_FREQUENCIES[selected_string]
 
-        # Umbral dinámico: basado en la frecuencia de referencia
-        # Para E2 (82.41 Hz): umbral bajo ~82
-        # Para G3 (196.00 Hz): umbral medio ~196
-        # Para E4 (329.63 Hz): umbral alto ~330
-        # Usar multiplicador 1.0 para ser más permisivo
-        MAGNITUDE_THRESHOLD = max(50, int(reference_freq * 1.0))
+        # Umbral dinámico: más permisivo para cuerdas graves
+        MAGNITUDE_THRESHOLD = max(50, int(reference_freq * 0.8))
 
         if dominant_frequency is not None and dominant_magnitude > MAGNITUDE_THRESHOLD:
-            # Buscar la frecuencia más cercana a la cuerda seleccionada
-            # en un rango razonable (±50% de la frecuencia de referencia)
-            selected_string = self.current_string.get()
-            reference_freq = REFERENCE_FREQUENCIES[selected_string]
-
-            # Rango de búsqueda: referencia ±50%
-            min_freq = reference_freq * 0.5
-            max_freq = reference_freq * 1.5
-
-            # Si la frecuencia detectada está muy lejos del rango esperado, ignorarla
-            if not (min_freq <= dominant_frequency <= max_freq):
-                # Frecuencia fuera de rango, mostrar estado neutral
-                self.frequency_label.config(text="Frecuencia: --- Hz")
-                self.status_label.config(text="Estado: Esperando señal válida...", fg="#888888")
-                canvas_width = self.tuner_canvas.winfo_width()
-                if canvas_width <= 1:
-                    canvas_width = 300
-                bar_left = 30
-                bar_right = canvas_width - 30
-                bar_center = bar_left + (bar_right - bar_left) / 2
-                self.draw_tuner_needle(self.tuner_canvas, bar_center, 50, 80)
-                self.root.after(100, self.tune_guitar)
-                return
-
-            closest_string, min_distance = self.tuner_logic.find_closest_string(dominant_frequency)
-            reference_freq = REFERENCE_FREQUENCIES[selected_string]
-
-            self.current_frequency = dominant_frequency
-            self.frequency_label.config(text=f"Frecuencia: {dominant_frequency:.2f} Hz")
-
-            # Calcular offset en cents (unidades de afinación musical)
+            # Validar que dominant_frequency es válido
             if dominant_frequency > 0:
                 cents_offset = 1200 * math.log2(dominant_frequency / reference_freq)
+
+                # NO rechazar por rango - procesar TODA la señal
+                # La tolerancia final de ±25 cents es el filtro verdadero
+
+                # Frecuencia válida
+                self.current_frequency = dominant_frequency
+                self.frequency_label.config(text=f"Frecuencia: {dominant_frequency:.2f} Hz")
                 self.tuning_offset = cents_offset
 
                 # Obtener posiciones del canvas tuner
@@ -427,29 +400,27 @@ class GuitarTunerGUI:
                 bar_bottom = 80
 
                 # Mapear offset en cents a posición en la barra
-                # ±50 cents = fuera del rango visible
-                max_cents = 50
-                normalized_offset = max(-1, min(1, cents_offset / max_cents))
+                max_cents_display = 50
+                normalized_offset = max(-1, min(1, cents_offset / max_cents_display))
                 needle_x = bar_center + (normalized_offset * bar_width / 2)
 
-                # Dibujar la aguja en la posición correcta
+                # Dibujar la aguja
                 self.draw_tuner_needle(self.tuner_canvas, needle_x, bar_top, bar_bottom)
 
-                # Determinar estado basado ÚNICAMENTE en cents_offset
-                if abs(cents_offset) <= 7:  # ±7 cents de tolerancia
+                # Determinar estado: ±25 cents de tolerancia
+                if abs(cents_offset) <= 25:  # ±25 cents de tolerancia
                     self.tuning_status = "AFINADO ✓"
                     self.status_label.config(text=f"Estado: {self.tuning_status} ({cents_offset:+.1f}¢)", fg="#00ff66")
-                elif cents_offset > 7:  # Si es positivo, está más alta
+                elif cents_offset > 25:
                     self.tuning_status = "DEMASIADO ALTA"
                     self.status_label.config(text=f"Estado: {self.tuning_status} (+{cents_offset:.1f}¢)", fg="#ff3333")
-                else:  # Si es negativo, está más baja
+                else:
                     self.tuning_status = "DEMASIADO BAJA"
                     self.status_label.config(text=f"Estado: {self.tuning_status} ({cents_offset:.1f}¢)", fg="#ff3333")
         else:
-            # Si no hay señal suficiente, mostrar estado neutral
+            # Si no hay señal suficiente
             self.frequency_label.config(text="Frecuencia: --- Hz")
             self.status_label.config(text="Estado: Esperando señal...", fg="#888888")
-            # Reiniciar la aguja al centro
             canvas_width = self.tuner_canvas.winfo_width()
             if canvas_width <= 1:
                 canvas_width = 300
