@@ -367,6 +367,20 @@ class GuitarTunerGUI:
         selected_string = self.current_string.get()
         reference_freq = REFERENCE_FREQUENCIES[selected_string]
 
+        # Filtrado inteligente de armónicos
+        if dominant_frequency is not None:
+            ratio = dominant_frequency / reference_freq
+
+            # Si es aproximadamente 2x (armónico octava más alta)
+            if 1.8 < ratio < 2.2:
+                dominant_frequency = dominant_frequency / 2
+            # Si es aproximadamente 1.5x (armónico quinta justa)
+            elif 1.4 < ratio < 1.6:
+                dominant_frequency = dominant_frequency / 1.5
+            # Si es aproximadamente 3x (armónico dos octavas más alta)
+            elif 2.8 < ratio < 3.2:
+                dominant_frequency = dominant_frequency / 3
+
         # Umbral dinámico: más permisivo para cuerdas graves
         MAGNITUDE_THRESHOLD = max(50, int(reference_freq * 0.8))
 
