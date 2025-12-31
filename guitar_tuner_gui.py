@@ -48,6 +48,11 @@ class GuitarTunerGUI:
         self.tuning_status = "---"
         self.tuning_offset = 0.0
 
+        # Modo de funcionamiento
+        self.auto_detect_mode = True  # Inicia en detección automática
+        self.detection_frames = 0  # Contador para transición a selección
+        self.transition_threshold = 20  # Frames con cuerda detectada para cambiar a selección
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -76,9 +81,16 @@ class GuitarTunerGUI:
         left_frame = tk.Frame(content_frame, bg="#0a0a0a")
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
 
-        guitar_label = tk.Label(left_frame, text="GUITARRA - Haz clic en una cuerda", font=("Helvetica", 12, "bold"),
+        guitar_label_frame = tk.Frame(left_frame, bg="#0a0a0a")
+        guitar_label_frame.pack(fill=tk.X)
+
+        guitar_label = tk.Label(guitar_label_frame, text="GUITARRA", font=("Helvetica", 12, "bold"),
                                bg="#0a0a0a", fg="#00d9ff")
-        guitar_label.pack()
+        guitar_label.pack(side=tk.LEFT)
+
+        self.mode_label = tk.Label(guitar_label_frame, text="[DETECCIÓN AUTOMÁTICA]",
+                                  font=("Helvetica", 10, "bold"), bg="#0a0a0a", fg="#00ff66")
+        self.mode_label.pack(side=tk.RIGHT, padx=10)
 
         # Canvas para la guitarra con manejo de eventos
         self.guitar_canvas = tk.Canvas(left_frame, bg="#0a0a0a", width=450, height=350,
@@ -86,6 +98,8 @@ class GuitarTunerGUI:
                                        cursor="hand2")
         self.guitar_canvas.pack(pady=5, fill=tk.BOTH, expand=True)
         self.guitar_canvas.bind("<Button-1>", self.on_guitar_click)
+        self.guitar_canvas.bind("<Motion>", self.on_guitar_hover)
+        self.draw_guitar()
         self.guitar_canvas.bind("<Motion>", self.on_guitar_hover)
         self.draw_guitar()
 
@@ -135,8 +149,16 @@ class GuitarTunerGUI:
         close_button.pack(side=tk.LEFT, padx=15, pady=10)
 
     def select_string(self, string_key):
+        """Seleccionar una cuerda manualmente y cambiar a modo selección"""
         self.current_string.set(string_key)
-        self.string_info_label.config(text=f"Cuerda: {string_key} ({STRING_NAMES[string_key]})")
+        self.string_info_label.config(text=f"Cuerda: {string_key} ({STRING_NAMES[string_key]}) ✓ Seleccionada")
+
+        # Cambiar a modo selección
+        if self.auto_detect_mode:
+            self.auto_detect_mode = False
+            self.detection_frames = 0
+            self.update_mode_label()
+
         self.draw_guitar()
 
     def on_guitar_click(self, event):
@@ -148,7 +170,6 @@ class GuitarTunerGUI:
             for string_key, string_y in self.string_positions:
                 if abs(event.y - string_y) < 25:
                     self.select_string(string_key)
-                    self.string_info_label.config(text=f"Cuerda: {string_key} ({STRING_NAMES[string_key]}) ✓ Seleccionada")
                     return
 
         # Si no se encontró cuerda cercana, mostrar mensaje
@@ -164,6 +185,37 @@ class GuitarTunerGUI:
                     return
             # Cursor normal fuera de las cuerdas
             self.guitar_canvas.config(cursor="arrow")
+
+    def update_mode_label(self):
+        """Actualizar el indicador del modo actual"""
+        if self.auto_detect_mode:
+            self.mode_label.config(text="[DETECCIÓN AUTOMÁTICA]", fg="#00ff66")
+        else:
+            self.mode_label.config(text="[SELECCIÓN MANUAL]", fg="#ffaa00")
+
+    def detect_string(self, frequency):
+        """
+        Detecta automáticamente cuál cuerda se está tocando basándose en la frecuencia.
+        Retorna el nombre de la cuerda más cercana si está dentro de un rango razonable.
+        """
+        if frequency is None or frequency <= 0:
+            return None
+
+        # Para cada cuerda, calcular la distancia en cents
+        min_distance = float('inf')
+        detected_string = None
+
+        for string_key, reference_freq in REFERENCE_FREQUENCIES.items():
+            # Calcular cents de diferencia
+            cents_diff = abs(1200 * math.log2(frequency / reference_freq))
+
+            # Si está dentro de ±150 cents (bastante permisivo)
+            # pero más cercano que otras cuerdas
+            if cents_diff < min_distance and cents_diff < 150:
+                min_distance = cents_diff
+                detected_string = string_key
+
+        return detected_string
 
     def draw_guitar(self):
         canvas = self.guitar_canvas
@@ -373,7 +425,31 @@ class GuitarTunerGUI:
         windowed_data = filtered_data * np.hamming(len(filtered_data))
         dominant_frequency, dominant_magnitude = self.signal_processor.dominant_freq(windowed_data)
 
-        # Obtener la cuerda seleccionada y su frecuencia de referencia
+        # ========== LÓGICA DE MODO ==========
+        # En modo detección automática, detectar la cuerda tocada
+        if self.auto_detect_mode:
+            detected_string = self.detect_string(dominant_frequency)
+
+            if detected_string:
+                # Hay una cuerda detectada
+                self.detection_frames += 1
+
+                # Si se mantiene detectada por varios frames, cambiar a selección
+                if self.detection_frames >= self.transition_threshold:
+                    self.auto_detect_mode = False
+                    self.detection_frames = 0
+                    self.select_string(detected_string)
+                else:
+                    # Aún en detección, mostrar la cuerda detectada temporalmente
+                    self.current_string.set(detected_string)
+                    self.string_info_label.config(text=f"Cuerda: {detected_string} ({STRING_NAMES[detected_string]}) • Detectada")
+                    self.draw_guitar()
+            else:
+                # No hay cuerda detectada
+                self.detection_frames = 0
+                self.current_string.set("E4")  # Mantener por defecto
+
+        # Obtener la cuerda (ya sea detectada o seleccionada)
         selected_string = self.current_string.get()
         reference_freq = REFERENCE_FREQUENCIES[selected_string]
 
