@@ -455,38 +455,82 @@ class GuitarTunerGUI:
                 self.detection_frames = 0
                 self.current_string.set("E4")  # Mantener por defecto
 
+        # === FILTRADO INTELIGENTE DE ARMÓNICOS ANTES DE DETECTAR CUERDA ===
+        # Esto evita que armónicos de cuerdas graves se confundan con fundamentales
+        filtered_frequency = dominant_frequency
+
+        if dominant_frequency is not None and dominant_frequency > 0:
+            # Intentar eliminar armónicos comunes para todas las cuerdas
+            for string_key, reference_freq in REFERENCE_FREQUENCIES.items():
+                ratio = dominant_frequency / reference_freq
+
+                # Verificar múltiplos (armónicos)
+                for harmonic in [2, 2.5, 3, 3.5, 4]:
+                    if abs(ratio - harmonic) < 0.15:  # Tolerancia ±15%
+                        filtered_frequency = dominant_frequency / harmonic
+                        break
+
+        # Usar la frecuencia filtrada para la detección
+        detection_freq = filtered_frequency if filtered_frequency is not None else dominant_frequency
+
+        # ========== LÓGICA DE MODO ==========
+        # En modo detección automática, detectar la cuerda tocada
+        if self.auto_detect_mode:
+            detected_string = self.detect_string(detection_freq)
+
+            if detected_string:
+                # Hay una cuerda detectada
+                self.detection_frames += 1
+
+                # Si se mantiene detectada por varios frames, cambiar a selección
+                if self.detection_frames >= self.transition_threshold:
+                    self.auto_detect_mode = False
+                    self.detection_frames = 0
+                    self.select_string(detected_string)
+                else:
+                    # Aún en detección, mostrar la cuerda detectada temporalmente
+                    self.current_string.set(detected_string)
+                    self.string_info_label.config(text=f"Cuerda: {detected_string} ({STRING_NAMES[detected_string]}) • Detectada")
+                    self.draw_guitar()
+            else:
+                # No hay cuerda detectada
+                self.detection_frames = 0
+                self.current_string.set("E4")  # Mantener por defecto
+
         # Obtener la cuerda (ya sea detectada o seleccionada)
         selected_string = self.current_string.get()
         reference_freq = REFERENCE_FREQUENCIES[selected_string]
 
-        # Filtrado inteligente de armónicos
-        if dominant_frequency is not None:
+        # Filtrado inteligente de armónicos para la cuerda específica
+        adjusted_frequency = dominant_frequency
+
+        if dominant_frequency is not None and dominant_frequency > 0:
             ratio = dominant_frequency / reference_freq
 
             # Si es aproximadamente 2x (armónico octava más alta)
             if 1.8 < ratio < 2.2:
-                dominant_frequency = dominant_frequency / 2
+                adjusted_frequency = dominant_frequency / 2
             # Si es aproximadamente 1.5x (armónico quinta justa)
             elif 1.4 < ratio < 1.6:
-                dominant_frequency = dominant_frequency / 1.5
+                adjusted_frequency = dominant_frequency / 1.5
             # Si es aproximadamente 3x (armónico dos octavas más alta)
             elif 2.8 < ratio < 3.2:
-                dominant_frequency = dominant_frequency / 3
+                adjusted_frequency = dominant_frequency / 3
 
         # Umbral dinámico: más permisivo para cuerdas graves
         MAGNITUDE_THRESHOLD = max(50, int(reference_freq * 0.8))
 
-        if dominant_frequency is not None and dominant_magnitude > MAGNITUDE_THRESHOLD:
-            # Validar que dominant_frequency es válido
-            if dominant_frequency > 0:
-                cents_offset = 1200 * math.log2(dominant_frequency / reference_freq)
+        if adjusted_frequency is not None and dominant_magnitude > MAGNITUDE_THRESHOLD:
+            # Validar que adjusted_frequency es válido
+            if adjusted_frequency > 0:
+                cents_offset = 1200 * math.log2(adjusted_frequency / reference_freq)
 
                 # NO rechazar por rango - procesar TODA la señal
                 # La tolerancia final de ±25 cents es el filtro verdadero
 
                 # Frecuencia válida
-                self.current_frequency = dominant_frequency
-                self.frequency_label.config(text=f"Frecuencia: {dominant_frequency:.2f} Hz")
+                self.current_frequency = adjusted_frequency
+                self.frequency_label.config(text=f"Frecuencia: {adjusted_frequency:.2f} Hz")
                 self.tuning_offset = cents_offset
 
                 # Actualizar visualizador gráfico con audio_data SIN procesar
