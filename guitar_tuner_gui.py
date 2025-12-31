@@ -322,11 +322,17 @@ class GuitarTunerGUI:
                           font=("Helvetica", 12, "bold"), fill="#00d9ff")
 
         # --- BARRA HORIZONTAL PRINCIPAL ---
-        bar_left = 30
-        bar_right = canvas_width - 30
+        bar_left = 2
+        bar_right = canvas_width - 2
         bar_top = 50
         bar_bottom = 80
         bar_height = bar_bottom - bar_top
+
+        # Guardar estos valores para usarlos en tune_guitar()
+        self.tuner_bar_left = bar_left
+        self.tuner_bar_right = bar_right
+        self.tuner_bar_top = bar_top
+        self.tuner_bar_bottom = bar_bottom
 
         # Fondo de la barra (negro)
         canvas.create_rectangle(bar_left, bar_top, bar_right, bar_bottom,
@@ -497,18 +503,29 @@ class GuitarTunerGUI:
                 if canvas_height <= 1:
                     canvas_height = 220
 
-                # Parámetros de la barra
-                bar_left = 30
-                bar_right = canvas_width - 30
+                # Usar los valores guardados de la barra desde draw_tuner()
+                if not hasattr(self, 'tuner_bar_left'):
+                    # En caso de que no estén inicializados, usar valores por defecto
+                    self.tuner_bar_left = 2
+                    self.tuner_bar_right = canvas_width - 2
+                    self.tuner_bar_top = 50
+                    self.tuner_bar_bottom = 80
+
+                bar_left = self.tuner_bar_left
+                bar_right = self.tuner_bar_right
+                bar_top = self.tuner_bar_top
+                bar_bottom = self.tuner_bar_bottom
+
                 bar_width = bar_right - bar_left
                 bar_center = bar_left + bar_width / 2
-                bar_top = 50
-                bar_bottom = 80
 
                 # Mapear offset en cents a posición en la barra
                 max_cents_display = 50
                 normalized_offset = max(-1, min(1, cents_offset / max_cents_display))
                 needle_x = bar_center + (normalized_offset * bar_width / 2)
+
+                # Asegurar que la aguja no se salga de los límites de la barra
+                needle_x = max(bar_left + 5, min(bar_right - 5, needle_x))
 
                 # Dibujar la aguja
                 self.draw_tuner_needle(self.tuner_canvas, needle_x, bar_top, bar_bottom)
@@ -527,13 +544,19 @@ class GuitarTunerGUI:
             # Si no hay señal suficiente
             self.frequency_label.config(text="Frecuencia: --- Hz")
             self.status_label.config(text="Estado: Esperando señal...", fg="#888888")
-            canvas_width = self.tuner_canvas.winfo_width()
-            if canvas_width <= 1:
-                canvas_width = 300
-            bar_left = 30
-            bar_right = canvas_width - 30
-            bar_center = bar_left + (bar_right - bar_left) / 2
-            self.draw_tuner_needle(self.tuner_canvas, bar_center, 50, 80)
+
+            # Usar los valores guardados de la barra desde draw_tuner()
+            if not hasattr(self, 'tuner_bar_left'):
+                canvas_width = self.tuner_canvas.winfo_width()
+                if canvas_width <= 1:
+                    canvas_width = 300
+                self.tuner_bar_left = 2
+                self.tuner_bar_right = canvas_width - 2
+                self.tuner_bar_top = 50
+                self.tuner_bar_bottom = 80
+
+            bar_center = self.tuner_bar_left + (self.tuner_bar_right - self.tuner_bar_left) / 2
+            self.draw_tuner_needle(self.tuner_canvas, bar_center, self.tuner_bar_top, self.tuner_bar_bottom)
 
         self.root.after(100, self.tune_guitar)
 
