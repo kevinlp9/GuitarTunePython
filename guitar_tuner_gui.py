@@ -83,7 +83,6 @@ class GuitarTunerGUI:
                                   font=("Helvetica", 10, "bold"), bg="#0a0a0a", fg="#00ff66")
         self.mode_label.pack(side=tk.RIGHT, padx=10)
 
-        # Canvas para la guitarra con manejo de eventos
         self.guitar_canvas = tk.Canvas(left_frame, bg="#0a0a0a", width=450, height=350,
                                        highlightbackground="#00d9ff", highlightthickness=2,
                                        cursor="hand2")
@@ -94,7 +93,6 @@ class GuitarTunerGUI:
         self.guitar_canvas.bind("<Motion>", self.on_guitar_hover)
         self.draw_guitar()
 
-        # Frame derecho: Indicador de afinación
         right_frame = tk.Frame(content_frame, bg="#0a0a0a")
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
 
@@ -102,7 +100,6 @@ class GuitarTunerGUI:
                               bg="#0a0a0a", fg="#00d9ff")
         tuner_label.pack()
 
-        # Canvas para el indicador
         self.tuner_canvas = tk.Canvas(right_frame, bg="#1a1a1a", width=350, height=200,
                                       highlightbackground="#00d9ff", highlightthickness=2)
         self.tuner_canvas.pack(pady=5, fill=tk.BOTH, expand=True)
@@ -359,7 +356,6 @@ class GuitarTunerGUI:
         windowed_data = filtered_data * np.hamming(len(filtered_data))
         dominant_frequency, dominant_magnitude = self.signal_processor.dominant_freq(windowed_data)
 
-        # En modo detección automática, detectar la cuerda tocada
         if self.auto_detect_mode:
             detected_string = self.detect_string(dominant_frequency)
 
@@ -378,8 +374,6 @@ class GuitarTunerGUI:
                 self.detection_frames = 0
                 self.current_string.set("E4")  # Mantener por defecto
 
-        # === FILTRADO INTELIGENTE DE ARMÓNICOS ANTES DE DETECTAR CUERDA ===
-        # Esto evita que armónicos de cuerdas graves se confundan con fundamentales
         filtered_frequency = dominant_frequency
 
         if dominant_frequency is not None and dominant_frequency > 0:
@@ -391,7 +385,6 @@ class GuitarTunerGUI:
                         filtered_frequency = dominant_frequency / harmonic
                         break
 
-        # Usar la frecuencia filtrada para la detección
         detection_freq = filtered_frequency if filtered_frequency is not None else dominant_frequency
 
         if self.auto_detect_mode:
