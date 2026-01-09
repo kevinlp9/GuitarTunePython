@@ -2,7 +2,6 @@ import tkinter as tk
 import numpy as np
 from audio_stream import AudioStream
 from signal_processor import SignalProcessor
-from tuner_logic import TunerLogic
 from visualizer import AudioVisualizer
 import math
 
@@ -12,7 +11,7 @@ REFERENCE_FREQUENCIES = {
     "G3": 196.00,  # 3ª cuerda
     "D3": 146.83,  # 4ª cuerda
     "A2": 110.00,  # 5ª cuerda
-    "E2": 82.41    # 6ª cuerda (más grave) - CORREGIDO
+    "E2": 82.41    # 6ª cuerda (más grave)
 }
 
 STRING_NAMES = {
@@ -41,43 +40,35 @@ class GuitarTunerGUI:
         self.is_tuning = False
         self.audio_stream = AudioStream(FORMAT, CHANNELS, RATE, CHUNK)
         self.signal_processor = SignalProcessor(RATE)
-        self.tuner_logic = TunerLogic(REFERENCE_FREQUENCIES, TOLERANCE)
 
         self.current_string = tk.StringVar(value="E4")
         self.current_frequency = 0.0
         self.tuning_status = "---"
         self.tuning_offset = 0.0
 
-        # Modo de funcionamiento
-        self.auto_detect_mode = True  # Inicia en detección automática
-        self.detection_frames = 0  # Contador para transición a selección
-        self.transition_threshold = 20  # Frames con cuerda detectada para cambiar a selección
+        self.auto_detect_mode = True
+        self.detection_frames = 0
+        self.transition_threshold = 20
 
         self.setup_ui()
 
     def setup_ui(self):
-        # Panel principal
         main_frame = tk.Frame(self.root, bg="#0a0a0a")
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-        # Título
         title_label = tk.Label(main_frame, text="AFINADOR DE GUITARRA", font=("Helvetica", 28, "bold"),
                                bg="#0a0a0a", fg="#00d9ff")
         title_label.pack(pady=(0, 10))
 
-        # Frame con gráficas (reducido)
         graphs_frame = tk.Frame(main_frame, bg="#0a0a0a", height=250)
         graphs_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
         graphs_frame.pack_propagate(False)  # Mantener altura fija
 
-        # Crear visualizador
         self.visualizer = AudioVisualizer(graphs_frame, rate=RATE, chunk=CHUNK)
 
-        # Frame principal contenido
         content_frame = tk.Frame(main_frame, bg="#0a0a0a")
         content_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-        # Frame izquierdo: Guitarra
         left_frame = tk.Frame(content_frame, bg="#0a0a0a")
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
 
@@ -117,22 +108,18 @@ class GuitarTunerGUI:
         self.tuner_canvas.pack(pady=5, fill=tk.BOTH, expand=True)
         self.draw_tuner()
 
-        # Información de la cuerda
         self.string_info_label = tk.Label(right_frame, text="Cuerda: E4 (1ª cuerda)",
                                          font=("Helvetica", 10, "bold"), bg="#0a0a0a", fg="#00ffaa")
         self.string_info_label.pack(pady=3)
 
-        # Frecuencia detectada
         self.frequency_label = tk.Label(right_frame, text="Frecuencia: --- Hz",
                                        font=("Helvetica", 9), bg="#0a0a0a", fg="#ffff00")
         self.frequency_label.pack()
 
-        # Estado de afinación
         self.status_label = tk.Label(right_frame, text="Estado: Esperando...",
                                     font=("Helvetica", 9, "bold"), bg="#0a0a0a", fg="#888888")
         self.status_label.pack(pady=3)
 
-        # Botones de control (FRAME SEPARADO EN LA PARTE INFERIOR)
         button_frame = tk.Frame(self.root, bg="#0a0a0a", height=70)
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
 
@@ -149,11 +136,9 @@ class GuitarTunerGUI:
         close_button.pack(side=tk.LEFT, padx=15, pady=10)
 
     def select_string(self, string_key):
-        """Seleccionar una cuerda manualmente y cambiar a modo selección"""
         self.current_string.set(string_key)
         self.string_info_label.config(text=f"Cuerda: {string_key} ({STRING_NAMES[string_key]}) ✓ Seleccionada")
 
-        # Cambiar a modo selección
         if self.auto_detect_mode:
             self.auto_detect_mode = False
             self.detection_frames = 0
@@ -162,55 +147,38 @@ class GuitarTunerGUI:
         self.draw_guitar()
 
     def on_guitar_click(self, event):
-        """Detectar clic en una cuerda y seleccionarla"""
-        # Usar las posiciones almacenadas si existen
         if hasattr(self, 'string_positions') and self.string_positions:
-            # Verificar si el clic está cerca de alguna cuerda
-            # Aumentar la zona de tolerancia a 25 píxeles para facilitar el clic
             for string_key, string_y in self.string_positions:
                 if abs(event.y - string_y) < 25:
                     self.select_string(string_key)
                     return
 
-        # Si no se encontró cuerda cercana, mostrar mensaje
         self.string_info_label.config(text="Haz clic más cercano a una cuerda", fg="#ff9900")
 
     def on_guitar_hover(self, event):
-        """Mostrar efecto visual cuando el ratón está sobre una cuerda"""
         if hasattr(self, 'string_positions') and self.string_positions:
             for string_key, string_y in self.string_positions:
                 if abs(event.y - string_y) < 25:
-                    # Cambiar cursor cuando está sobre una cuerda
                     self.guitar_canvas.config(cursor="hand2")
                     return
-            # Cursor normal fuera de las cuerdas
             self.guitar_canvas.config(cursor="arrow")
 
     def update_mode_label(self):
-        """Actualizar el indicador del modo actual"""
         if self.auto_detect_mode:
             self.mode_label.config(text="[DETECCIÓN AUTOMÁTICA]", fg="#00ff66")
         else:
             self.mode_label.config(text="[SELECCIÓN MANUAL]", fg="#ffaa00")
 
     def detect_string(self, frequency):
-        """
-        Detecta automáticamente cuál cuerda se está tocando basándose en la frecuencia.
-        Retorna el nombre de la cuerda más cercana si está dentro de un rango razonable.
-        """
         if frequency is None or frequency <= 0:
             return None
 
-        # Para cada cuerda, calcular la distancia en cents
         min_distance = float('inf')
         detected_string = None
 
         for string_key, reference_freq in REFERENCE_FREQUENCIES.items():
-            # Calcular cents de diferencia
             cents_diff = abs(1200 * math.log2(frequency / reference_freq))
 
-            # Si está dentro de ±150 cents (bastante permisivo)
-            # pero más cercano que otras cuerdas
             if cents_diff < min_distance and cents_diff < 150:
                 min_distance = cents_diff
                 detected_string = string_key
@@ -224,13 +192,11 @@ class GuitarTunerGUI:
         canvas_width = canvas.winfo_width()
         canvas_height = canvas.winfo_height()
 
-        # Valores por defecto si no se ha dibujado aún
         if canvas_width <= 1:
             canvas_width = 400
         if canvas_height <= 1:
             canvas_height = 500
 
-        # Parámetros de la guitarra
         margin_left = 40
         margin_right = 40
         margin_top = 60
@@ -241,64 +207,50 @@ class GuitarTunerGUI:
         guitar_top = margin_top
         guitar_bottom = canvas_height - margin_bottom
 
-        # Número de trastes
         num_frets = 12
         fret_spacing = (guitar_right - guitar_left) / num_frets
 
-        # Dibujar trastes (líneas verticales)
         for i in range(num_frets + 1):
             x = guitar_left + (i * fret_spacing)
             canvas.create_line(x, guitar_top, x, guitar_bottom, fill="#555555", width=1)
             if i > 0:
                 canvas.create_text(x, guitar_top - 15, text=str(i), font=("Helvetica", 8), fill="#888888")
 
-        # Cuerdas horizontales (6 cuerdas de guitarra)
         string_keys = list(REFERENCE_FREQUENCIES.keys())
         start_y = guitar_top
         end_y = guitar_bottom
         string_spacing = (end_y - start_y) / 5
 
-        # Almacenar posiciones de cuerdas para detección de clics
         self.string_positions = []
 
-        # Colores de las cuerdas (más vibrantes y diferenciados)
-        # Orden: E4, B3, G3, D3, A2, E2
         string_colors = ["#ff0080", "#ff3300", "#ff6600", "#ffaa00", "#ffdd00", "#ffff00"]
         string_widths = [5, 5, 4, 4, 3, 3]  # Cuerdas más gruesas para mejor visibilidad
 
-        # Dibujar cuerdas
         selected_string = self.current_string.get()
         for idx, string_key in enumerate(string_keys):
             string_y = start_y + (idx * string_spacing)
             self.string_positions.append((string_key, string_y))
 
-            # Área de selección (rectángulo detrás)
             if string_key == selected_string:
-                # Seleccionada: resaltada en cyan
                 canvas.create_rectangle(guitar_left - 5, string_y - 25, guitar_right + 5, string_y + 25,
                                       fill="#004444", outline="#00ffff", width=3)
                 color = "#00ffff"
                 width = string_widths[idx] + 2
             else:
-                # No seleccionada: fondo sutil
                 canvas.create_rectangle(guitar_left - 5, string_y - 25, guitar_right + 5, string_y + 25,
                                       fill="#1a1a1a", outline="#333333", width=1)
                 color = string_colors[idx]
                 width = string_widths[idx]
 
-            # Dibujar cuerda (más gruesa)
             canvas.create_line(guitar_left, string_y, guitar_right, string_y,
                              fill=color, width=width)
 
-            # Etiqueta de cuerda a la izquierda (más grande)
             canvas.create_text(15, string_y, text=string_key,
                              font=("Helvetica", 12, "bold"), fill="#00ffff")
 
-            # Nombre de cuerda a la derecha (más grande)
             canvas.create_text(canvas_width - 15, string_y, text=STRING_NAMES[string_key],
                              font=("Helvetica", 11), fill="#00ffaa", anchor="e")
 
-        # Marco exterior
         canvas.create_rectangle(5, 5, canvas_width - 5, canvas_height - 5,
                                outline="#00d9ff", width=2)
 
@@ -314,56 +266,44 @@ class GuitarTunerGUI:
         if canvas_height <= 1:
             canvas_height = 220
 
-        # Fondo elegante con gradiente (simulado)
         canvas.create_rectangle(0, 0, canvas_width, canvas_height, fill="#0f0f0f", outline="#00d9ff", width=2)
 
-        # Título del indicador
         canvas.create_text(canvas_width / 2, 15, text="AFINACIÓN",
                           font=("Helvetica", 12, "bold"), fill="#00d9ff")
 
-        # --- BARRA HORIZONTAL PRINCIPAL ---
         bar_left = 2
         bar_right = canvas_width - 2
         bar_top = 50
         bar_bottom = 80
         bar_height = bar_bottom - bar_top
 
-        # Guardar estos valores para usarlos en tune_guitar()
         self.tuner_bar_left = bar_left
         self.tuner_bar_right = bar_right
         self.tuner_bar_top = bar_top
         self.tuner_bar_bottom = bar_bottom
 
-        # Fondo de la barra (negro)
         canvas.create_rectangle(bar_left, bar_top, bar_right, bar_bottom,
                                fill="#0a0a0a", outline="#444444", width=1)
 
-        # Zonas de color en la barra
         bar_width = bar_right - bar_left
         zone_width = bar_width / 3
 
-        # Zona BAJA (rojo)
         canvas.create_rectangle(bar_left, bar_top, bar_left + zone_width, bar_bottom,
                                fill="#330000", outline="", width=0)
-        # Zona AFINADO (verde)
         canvas.create_rectangle(bar_left + zone_width, bar_top, bar_left + 2*zone_width, bar_bottom,
                                fill="#003300", outline="", width=0)
-        # Zona ALTA (rojo)
         canvas.create_rectangle(bar_left + 2*zone_width, bar_top, bar_right, bar_bottom,
                                fill="#330000", outline="", width=0)
 
-        # Líneas divisoras
         canvas.create_line(bar_left + zone_width, bar_top - 5, bar_left + zone_width, bar_bottom + 5,
                           fill="#ff3333", width=2)
         canvas.create_line(bar_left + 2*zone_width, bar_top - 5, bar_left + 2*zone_width, bar_bottom + 5,
                           fill="#ff3333", width=2)
 
-        # Línea central (marca el punto de afinación perfecta)
         center_x = bar_left + bar_width / 2
         canvas.create_line(center_x, bar_top - 10, center_x, bar_bottom + 10,
                           fill="#00ff66", width=3)
 
-        # Etiquetas de zonas
         canvas.create_text(bar_left + zone_width/2, bar_top + bar_height + 20,
                           text="BAJA", font=("Helvetica", 9, "bold"), fill="#ff3333")
         canvas.create_text(center_x, bar_top + bar_height + 20,
@@ -371,37 +311,25 @@ class GuitarTunerGUI:
         canvas.create_text(bar_left + 2.5*zone_width, bar_top + bar_height + 20,
                           text="ALTA", font=("Helvetica", 9, "bold"), fill="#ff3333")
 
-        # Aguja/indicador en el centro inicialmente
         self.draw_tuner_needle(canvas, center_x, bar_top, bar_bottom)
 
-        # --- INFORMACIÓN ADICIONAL ---
         info_y = 130
 
-        # Offset en cents
         canvas.create_text(15, info_y, text="Offset:", font=("Helvetica", 9), fill="#888888", anchor="w")
         self.offset_label = tk.Label(self.root, text="0.0¢", font=("Helvetica", 10, "bold"),
                                     bg="#0f0f0f", fg="#ffff00")
-        # Esto se actualizará dinámicamente
 
-        # Línea decorativa inferior
         canvas.create_line(15, info_y + 25, canvas_width - 15, info_y + 25,
                           fill="#444444", width=1)
 
     def draw_tuner_needle(self, canvas, x, top, bottom):
-        """Dibujar la aguja del indicador de afinación"""
         canvas.delete("needle")
 
-        # Aguja triangular
         height = bottom - top + 20
         points = [x, top - 10, x - 6, top + 8, x + 6, top + 8]
         canvas.create_polygon(points, fill="#ffff00", outline="#ffff00", tags="needle")
 
-        # Línea vertical
         canvas.create_line(x, top, x, bottom + 5, fill="#ffff00", width=2, tags="needle")
-
-    def draw_needle(self, canvas, cx, cy, angle, radius=None):
-        """Método obsoleto - mantener para compatibilidad"""
-        pass
 
     def control_tuning(self):
         if self.is_tuning:
@@ -431,27 +359,22 @@ class GuitarTunerGUI:
         windowed_data = filtered_data * np.hamming(len(filtered_data))
         dominant_frequency, dominant_magnitude = self.signal_processor.dominant_freq(windowed_data)
 
-        # ========== LÓGICA DE MODO ==========
         # En modo detección automática, detectar la cuerda tocada
         if self.auto_detect_mode:
             detected_string = self.detect_string(dominant_frequency)
 
             if detected_string:
-                # Hay una cuerda detectada
                 self.detection_frames += 1
 
-                # Si se mantiene detectada por varios frames, cambiar a selección
                 if self.detection_frames >= self.transition_threshold:
                     self.auto_detect_mode = False
                     self.detection_frames = 0
                     self.select_string(detected_string)
                 else:
-                    # Aún en detección, mostrar la cuerda detectada temporalmente
                     self.current_string.set(detected_string)
                     self.string_info_label.config(text=f"Cuerda: {detected_string} ({STRING_NAMES[detected_string]}) • Detectada")
                     self.draw_guitar()
             else:
-                # No hay cuerda detectada
                 self.detection_frames = 0
                 self.current_string.set("E4")  # Mantener por defecto
 
@@ -460,11 +383,9 @@ class GuitarTunerGUI:
         filtered_frequency = dominant_frequency
 
         if dominant_frequency is not None and dominant_frequency > 0:
-            # Intentar eliminar armónicos comunes para todas las cuerdas
             for string_key, reference_freq in REFERENCE_FREQUENCIES.items():
                 ratio = dominant_frequency / reference_freq
 
-                # Verificar múltiplos (armónicos)
                 for harmonic in [2, 2.5, 3, 3.5, 4]:
                     if abs(ratio - harmonic) < 0.15:  # Tolerancia ±15%
                         filtered_frequency = dominant_frequency / harmonic
@@ -473,73 +394,53 @@ class GuitarTunerGUI:
         # Usar la frecuencia filtrada para la detección
         detection_freq = filtered_frequency if filtered_frequency is not None else dominant_frequency
 
-        # ========== LÓGICA DE MODO ==========
-        # En modo detección automática, detectar la cuerda tocada
         if self.auto_detect_mode:
             detected_string = self.detect_string(detection_freq)
 
             if detected_string:
-                # Hay una cuerda detectada
                 self.detection_frames += 1
 
-                # Si se mantiene detectada por varios frames, cambiar a selección
                 if self.detection_frames >= self.transition_threshold:
                     self.auto_detect_mode = False
                     self.detection_frames = 0
                     self.select_string(detected_string)
                 else:
-                    # Aún en detección, mostrar la cuerda detectada temporalmente
                     self.current_string.set(detected_string)
                     self.string_info_label.config(text=f"Cuerda: {detected_string} ({STRING_NAMES[detected_string]}) • Detectada")
                     self.draw_guitar()
             else:
-                # No hay cuerda detectada
                 self.detection_frames = 0
                 self.current_string.set("E4")  # Mantener por defecto
 
-        # Obtener la cuerda (ya sea detectada o seleccionada)
         selected_string = self.current_string.get()
         reference_freq = REFERENCE_FREQUENCIES[selected_string]
 
-        # Filtrado inteligente de armónicos para la cuerda específica
         adjusted_frequency = dominant_frequency
 
         if dominant_frequency is not None and dominant_frequency > 0:
             ratio = dominant_frequency / reference_freq
 
-            # Si es aproximadamente 2x (armónico octava más alta)
             if 1.8 < ratio < 2.2:
                 adjusted_frequency = dominant_frequency / 2
-            # Si es aproximadamente 1.5x (armónico quinta justa)
             elif 1.4 < ratio < 1.6:
                 adjusted_frequency = dominant_frequency / 1.5
-            # Si es aproximadamente 3x (armónico dos octavas más alta)
             elif 2.8 < ratio < 3.2:
                 adjusted_frequency = dominant_frequency / 3
 
-        # Umbral dinámico: más permisivo para cuerdas graves
         MAGNITUDE_THRESHOLD = max(50, int(reference_freq * 0.8))
 
         if adjusted_frequency is not None and dominant_magnitude > MAGNITUDE_THRESHOLD:
-            # Validar que adjusted_frequency es válido
             if adjusted_frequency > 0:
                 cents_offset = 1200 * math.log2(adjusted_frequency / reference_freq)
-
-                # NO rechazar por rango - procesar TODA la señal
-                # La tolerancia final de ±25 cents es el filtro verdadero
-
-                # Frecuencia válida
                 self.current_frequency = adjusted_frequency
                 self.frequency_label.config(text=f"Frecuencia: {adjusted_frequency:.2f} Hz")
                 self.tuning_offset = cents_offset
 
-                # Actualizar visualizador gráfico con audio_data SIN procesar
                 try:
                     self.visualizer.update(audio_data, dominant_frequency)
                 except Exception as e:
-                    pass  # Si hay error en visualizador, continúa funcionando
+                    pass
 
-                # Obtener posiciones del canvas tuner
                 canvas_width = self.tuner_canvas.winfo_width()
                 canvas_height = self.tuner_canvas.winfo_height()
                 if canvas_width <= 1:
@@ -547,9 +448,7 @@ class GuitarTunerGUI:
                 if canvas_height <= 1:
                     canvas_height = 220
 
-                # Usar los valores guardados de la barra desde draw_tuner()
                 if not hasattr(self, 'tuner_bar_left'):
-                    # En caso de que no estén inicializados, usar valores por defecto
                     self.tuner_bar_left = 2
                     self.tuner_bar_right = canvas_width - 2
                     self.tuner_bar_top = 50
@@ -568,13 +467,10 @@ class GuitarTunerGUI:
                 normalized_offset = max(-1, min(1, cents_offset / max_cents_display))
                 needle_x = bar_center + (normalized_offset * bar_width / 2)
 
-                # Asegurar que la aguja no se salga de los límites de la barra
                 needle_x = max(bar_left + 5, min(bar_right - 5, needle_x))
 
-                # Dibujar la aguja
                 self.draw_tuner_needle(self.tuner_canvas, needle_x, bar_top, bar_bottom)
 
-                # Determinar estado: ±25 cents de tolerancia
                 if abs(cents_offset) <= 25:  # ±25 cents de tolerancia
                     self.tuning_status = "AFINADO ✓"
                     self.status_label.config(text=f"Estado: {self.tuning_status} ({cents_offset:+.1f}¢)", fg="#00ff66")
@@ -585,11 +481,9 @@ class GuitarTunerGUI:
                     self.tuning_status = "DEMASIADO BAJA"
                     self.status_label.config(text=f"Estado: {self.tuning_status} ({cents_offset:.1f}¢)", fg="#ff3333")
         else:
-            # Si no hay señal suficiente
             self.frequency_label.config(text="Frecuencia: --- Hz")
             self.status_label.config(text="Estado: Esperando señal...", fg="#888888")
 
-            # Usar los valores guardados de la barra desde draw_tuner()
             if not hasattr(self, 'tuner_bar_left'):
                 canvas_width = self.tuner_canvas.winfo_width()
                 if canvas_width <= 1:
