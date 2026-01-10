@@ -42,8 +42,6 @@ Aparecerá una ventana gráfica donde podrás iniciar/detener la afinación. El 
 
 ## Autores
 
-- Kevin Atilano Gutierrez
-- 
-- 
+- Presented by: Atilano Gutiérrez Kevin, Blanco Reséndiz Cuauhtemoc, Flores Meneses Edgar Alberto
 
 
